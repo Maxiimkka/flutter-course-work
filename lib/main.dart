@@ -8,6 +8,7 @@ import 'package:coursework/providers/task_provider.dart';
 import 'package:coursework/screens/auth/login_screen.dart';
 import 'package:coursework/screens/home/home_screen.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:coursework/models/user.dart';
 import 'services/analytics_service.dart';
 
 void main() async {
@@ -34,6 +35,27 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, TaskProvider>(
+          create: (context) => TaskProvider(User(
+            id: 'temp',
+            email: 'temp@temp.com',
+            name: 'Temp User',
+            role: 'user',
+            createdAt: DateTime.now(),
+          )),
+          update: (context, auth, previous) {
+            if (auth.user == null) {
+              return TaskProvider(User(
+                id: 'temp',
+                email: 'temp@temp.com',
+                name: 'Temp User',
+                role: 'user',
+                createdAt: DateTime.now(),
+              ));
+            }
+            return TaskProvider(auth.user!);
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'Task Manager',

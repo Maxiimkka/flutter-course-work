@@ -161,11 +161,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     createdAt: DateTime.now(),
                     status: 'todo',
                   );
-                  await context.read<TaskProvider>().addTask(task);
-                  await _analytics.logTaskCreated(task.id, task.title, projectId);
-                  _taskTitleController.clear();
-                  _taskDescriptionController.clear();
-                  Navigator.pop(context);
+                  try {
+                    await context.read<TaskProvider>().addTask(task);
+                    await _analytics.logTaskCreated(task.id, task.title, projectId);
+                    _taskTitleController.clear();
+                    _taskDescriptionController.clear();
+                    Navigator.pop(context);
+                  } catch (e) {
+                    print('Error creating task in HomeScreen: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error creating task: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
               }
             },
@@ -187,126 +197,116 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return ChangeNotifierProvider(
-      create: (_) => TaskProvider(user),
-      child: Builder(
-        builder: (context) {
-          final taskProvider = context.watch<TaskProvider>();
-          final selectedProjectId = taskProvider.selectedProjectId;
-
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Tasks'),
-              actions: [
-                CircleAvatar(
-                  backgroundImage: user.photoURL != null
-                      ? NetworkImage(user.photoURL!)
-                      : null,
-                  child: user.photoURL == null
-                      ? Text(user.email.substring(0, 1).toUpperCase())
-                      : null,
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'logout') {
-                      context.read<AuthProvider>().signOut();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'logout',
-                      child: Text('Logout'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            drawer: Drawer(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  UserAccountsDrawerHeader(
-                    accountName: Text(user.name ?? 'User'),
-                    accountEmail: Text(user.email ?? 'No email'),
-                    currentAccountPicture: CircleAvatar(
-                      backgroundImage: user.photoURL != null
-                          ? NetworkImage(user.photoURL!)
-                          : null,
-                      child: user.photoURL == null
-                          ? Text(user.email.substring(0, 1).toUpperCase())
-                          : null,
-                    ),
-                  ),
-                  ...taskProvider.projects.map(
-                    (project) => ListTile(
-                      title: Text(project.title),
-                      subtitle: project.description != null
-                          ? Text(
-                              project.description!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            )
-                          : null,
-                      selected: project.id == selectedProjectId,
-                      onTap: () {
-                        taskProvider.selectProject(project.id);
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ),
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.add),
-                    title: const Text('Add Project'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showAddProjectDialog();
-                    },
-                  ),
-                ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Tasks'),
+        actions: [
+          CircleAvatar(
+            backgroundImage: user.photoURL != null
+                ? NetworkImage(user.photoURL!)
+                : null,
+            child: user.photoURL == null
+                ? Text(user.email.substring(0, 1).toUpperCase())
+                : null,
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'logout') {
+                context.read<AuthProvider>().signOut();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'logout',
+                child: Text('Logout'),
+              ),
+            ],
+          ),
+        ],
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            UserAccountsDrawerHeader(
+              accountName: Text(user.name ?? 'User'),
+              accountEmail: Text(user.email ?? 'No email'),
+              currentAccountPicture: CircleAvatar(
+                backgroundImage: user.photoURL != null
+                    ? NetworkImage(user.photoURL!)
+                    : null,
+                child: user.photoURL == null
+                    ? Text(user.email.substring(0, 1).toUpperCase())
+                    : null,
               ),
             ),
-            body: selectedProjectId == null
-                ? const Center(
-                    child: Text('Select a project to view tasks'),
-                  )
-                : ListView.builder(
-                    itemCount: taskProvider
-                        .getTasksForProject(selectedProjectId)
-                        .length,
-                    itemBuilder: (context, index) {
-                      final task = taskProvider
-                          .getTasksForProject(selectedProjectId)[index];
-                      return ListTile(
-                        title: Text(task.title),
-                        subtitle: task.description.isNotEmpty
-                            ? Text(
-                                task.description,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              )
-                            : null,
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () {
-                            taskProvider.deleteTask(task.id, user.id);
-                          },
-                        ),
-                        onTap: () {
-                          // TODO: Implement task details/edit screen
-                        },
-                      );
+            ...context.watch<TaskProvider>().projects.map(
+              (project) => ListTile(
+                title: Text(project.title),
+                subtitle: project.description != null
+                    ? Text(
+                        project.description!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : null,
+                selected: project.id == context.watch<TaskProvider>().selectedProjectId,
+                onTap: () {
+                  context.read<TaskProvider>().selectProject(project.id);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('Add Project'),
+              onTap: () {
+                Navigator.pop(context);
+                _showAddProjectDialog();
+              },
+            ),
+          ],
+        ),
+      ),
+      body: context.watch<TaskProvider>().selectedProjectId == null
+          ? const Center(
+              child: Text('Select a project to view tasks'),
+            )
+          : ListView.builder(
+              itemCount: context.watch<TaskProvider>()
+                  .getTasksForProject(context.watch<TaskProvider>().selectedProjectId!)
+                  .length,
+              itemBuilder: (context, index) {
+                final task = context.watch<TaskProvider>()
+                    .getTasksForProject(context.watch<TaskProvider>().selectedProjectId!)[index];
+                return ListTile(
+                  title: Text(task.title),
+                  subtitle: task.description.isNotEmpty
+                      ? Text(
+                          task.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : null,
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete),
+                    onPressed: () {
+                      context.read<TaskProvider>().deleteTask(task.id, user.id);
                     },
                   ),
-            floatingActionButton: selectedProjectId != null
-                ? FloatingActionButton(
-                    onPressed: () => _showAddTaskDialog(selectedProjectId),
-                    child: const Icon(Icons.add),
-                  )
-                : null,
-          );
-        },
-      ),
+                  onTap: () {
+                    // TODO: Implement task details/edit screen
+                  },
+                );
+              },
+            ),
+      floatingActionButton: context.watch<TaskProvider>().selectedProjectId != null
+          ? FloatingActionButton(
+              onPressed: () => _showAddTaskDialog(context.read<TaskProvider>().selectedProjectId!),
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }
